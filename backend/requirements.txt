@@ -1,0 +1,10 @@
+Django==4.2.7
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+channels==4.0.0
+channels-redis==4.1.0
+flask==2.3.3
+flask-socketio==5.3.6
+flask-cors==4.0.0
+eventlet==0.33.3
+python-dotenv==1.0.0
