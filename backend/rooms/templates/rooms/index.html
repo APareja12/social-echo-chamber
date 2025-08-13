@@ -1,0 +1,796 @@
+{% extends 'rooms/base.html' %} {% block title %}Home - Social Echo Chamber{%
+endblock %} {% block extra_css %}
+<style>
+  .hero {
+    text-align: center;
+    padding: 4rem 0;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.1),
+      rgba(16, 185, 129, 0.1)
+    );
+    border-radius: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  .hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: linear-gradient(
+      45deg,
+      var(--primary-color),
+      var(--secondary-color)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .rooms-section {
+    margin-bottom: 3rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .section-title {
+    font-size: 2rem;
+    font-weight: 600;
+  }
+
+  .rooms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .room-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .room-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--room-color, var(--primary-color));
+  }
+
+  .room-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    border-color: var(--primary-color);
+  }
+
+  .room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+
+  .room-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .room-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+  }
+
+  .status-indicator.full {
+    background: var(--error-color);
+  }
+
+  .room-description {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .room-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+  }
+
+  .room-members {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .room-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .create-room-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+    background: var(--surface);
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 500px;
+    border: 1px solid var(--border);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .modal-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+  }
+
+  .close-btn:hover {
+    background: var(--surface-light);
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--background);
+    color: var(--text-primary);
+    font-size: 1rem;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .color-picker {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .color-option {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .color-option.selected {
+    border-color: var(--text-primary);
+    transform: scale(1.1);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+  }
+
+  .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .hero h1 {
+      font-size: 2rem;
+    }
+
+    .hero-actions {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .rooms-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .section-header {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .modal-content {
+      margin: 1rem;
+      width: calc(100% - 2rem);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="hero">
+  <h1>🎵 Welcome to Social Echo Chamber</h1>
+  <p>
+    Join virtual 3D rooms, collaborate on music playlists, and send sound waves
+    to friends in real-time!
+  </p>
+  <div class="hero-actions">
+    <button class="btn btn-primary" onclick="openCreateRoomModal()">
+      ✨ Create New Room
+    </button>
+    <a href="#rooms" class="btn btn-secondary">🎼 Browse Rooms</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-number" id="totalRooms">{{ rooms|length }}</div>
+    <div class="stat-label">Active Rooms</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="totalUsers">
+      {{ total_users|default:"42" }}
+    </div>
+    <div class="stat-label">Online Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="totalSongs">
+      {{ total_songs|default:"1,337" }}
+    </div>
+    <div class="stat-label">Songs Shared</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="totalWaves">
+      {{ total_waves|default:"8,421" }}
+    </div>
+    <div class="stat-label">Sound Waves Sent</div>
+  </div>
+</div>
+
+<section class="rooms-section" id="rooms">
+  <div class="section-header">
+    <h2 class="section-title">🎼 Public Rooms</h2>
+    <button class="btn btn-primary" onclick="refreshRooms()">
+      <span id="refresh-icon">🔄</span> Refresh
+    </button>
+  </div>
+
+  <div class="rooms-grid" id="roomsGrid">
+    {% for room in rooms %}
+    <div class="room-card" style="--room-color: {{ room.room_color }}">
+      <div class="room-header">
+        <div>
+          <h3 class="room-name">{{ room.name }}</h3>
+          <div class="room-status">
+            <div
+              class="status-indicator {% if room.is_full %}full{% endif %}"
+            ></div>
+            {% if room.is_full %} Room Full {% else %} {{ room.member_count
+            }}/{{ room.max_users }} members {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if room.description %}
+      <p class="room-description">{{ room.description }}</p>
+      {% endif %}
+
+      <div class="room-meta">
+        <div class="room-members">
+          <i class="fas fa-users icon-sm"></i>
+          {{ room.member_count }} online
+        </div>
+        <div>
+          <i class="fas fa-music icon-sm"></i>
+          {{ room.songs_count|default:"0" }} songs
+        </div>
+      </div>
+
+      <div class="room-actions">
+        {% if not room.is_full %}
+        <a href="{% url 'rooms:room' room.id %}" class="btn btn-primary btn-sm">
+          <i class="fas fa-rocket icon-sm"></i>
+          Join Room
+        </a>
+        {% else %}
+        <button class="btn btn-secondary btn-sm" disabled>
+          <i class="fas fa-lock icon-sm"></i>
+          Full
+        </button>
+        {% endif %}
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="shareRoom('{{ room.id }}')"
+        >
+          <i class="fas fa-share-alt icon-sm"></i>
+          Share
+        </button>
+      </div>
+    </div>
+    {% empty %}
+    <div class="room-card" style="text-align: center; grid-column: 1 / -1">
+      <div
+        style="
+          font-size: 3rem;
+          margin-bottom: 1rem;
+          color: var(--text-secondary);
+        "
+      >
+        <i class="fas fa-music"></i>
+      </div>
+      <h3>No rooms yet!</h3>
+      <p class="room-description">
+        Be the first to create a room and start the music collaboration!
+      </p>
+      <button class="btn btn-primary" onclick="openCreateRoomModal()">
+        <i class="fas fa-plus icon-sm"></i>
+        Create First Room
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Create Room Modal -->
+<div class="create-room-modal" id="createRoomModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">
+        <i class="fas fa-plus icon-lg"></i>
+        Create New Room
+      </h3>
+      <button class="close-btn" onclick="closeCreateRoomModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form id="createRoomForm">
+      <div class="form-group">
+        <label class="form-label" for="roomName">
+          <i class="fas fa-tag icon-sm"></i>
+          Room Name *
+        </label>
+        <input
+          type="text"
+          id="roomName"
+          class="form-input"
+          placeholder="My Awesome Music Room"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="roomDescription">
+          <i class="fas fa-align-left icon-sm"></i>
+          Description
+        </label>
+        <textarea
+          id="roomDescription"
+          class="form-input form-textarea"
+          placeholder="What kind of music will you explore together?"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">
+          <i class="fas fa-palette icon-sm"></i>
+          Room Theme Color
+        </label>
+        <div class="color-picker">
+          <div
+            class="color-option selected"
+            style="background: #6366f1"
+            data-color="#6366f1"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #10b981"
+            data-color="#10b981"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #f59e0b"
+            data-color="#f59e0b"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #ef4444"
+            data-color="#ef4444"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #8b5cf6"
+            data-color="#8b5cf6"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #06b6d4"
+            data-color="#06b6d4"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #f97316"
+            data-color="#f97316"
+          ></div>
+          <div
+            class="color-option"
+            style="background: #84cc16"
+            data-color="#84cc16"
+          ></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="maxUsers">
+          <i class="fas fa-users icon-sm"></i>
+          Max Users (1-20)
+        </label>
+        <input
+          type="number"
+          id="maxUsers"
+          class="form-input"
+          min="1"
+          max="20"
+          value="8"
+        />
+      </div>
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="closeCreateRoomModal()"
+        >
+          <i class="fas fa-times icon-sm"></i>
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-rocket icon-sm"></i>
+          Create Room
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  let selectedColor = '#6366f1';
+
+  // Color picker functionality
+  document.querySelectorAll('.color-option').forEach((option) => {
+    option.addEventListener('click', () => {
+      document
+        .querySelectorAll('.color-option')
+        .forEach((opt) => opt.classList.remove('selected'));
+      option.classList.add('selected');
+      selectedColor = option.dataset.color;
+    });
+  });
+
+  // Modal functions
+  function openCreateRoomModal() {
+    document.getElementById('createRoomModal').style.display = 'flex';
+  }
+
+  function closeCreateRoomModal() {
+    document.getElementById('createRoomModal').style.display = 'none';
+    document.getElementById('createRoomForm').reset();
+    // Reset color selection
+    document
+      .querySelectorAll('.color-option')
+      .forEach((opt) => opt.classList.remove('selected'));
+    document
+      .querySelector('.color-option[data-color="#6366f1"]')
+      .classList.add('selected');
+    selectedColor = '#6366f1';
+  }
+
+  // Create room form submission
+  document
+    .getElementById('createRoomForm')
+    .addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        name: document.getElementById('roomName').value,
+        description: document.getElementById('roomDescription').value,
+        room_color: selectedColor,
+        max_users: parseInt(document.getElementById('maxUsers').value),
+        is_public: true,
+      };
+
+      try {
+        const response = await fetch('/api/rooms/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          showToast('Room created successfully! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = `/room/${result.id}/`;
+          }, 1500);
+        } else {
+          const error = await response.json();
+          showToast(
+            'Failed to create room: ' + (error.message || 'Unknown error'),
+            'error'
+          );
+        }
+      } catch (error) {
+        console.error('Error creating room:', error);
+        showToast('Failed to create room. Please try again.', 'error');
+      }
+    });
+
+  // Refresh rooms
+  async function refreshRooms() {
+    const refreshIcon = document.getElementById('refresh-icon');
+    refreshIcon.style.animation = 'spin 1s linear infinite';
+
+    try {
+      const response = await fetch('/api/rooms/');
+      if (response.ok) {
+        const rooms = await response.json();
+        updateRoomsGrid(rooms);
+        showToast('Rooms refreshed!', 'success');
+      } else {
+        showToast('Failed to refresh rooms', 'error');
+      }
+    } catch (error) {
+      console.error('Error refreshing rooms:', error);
+      showToast('Failed to refresh rooms', 'error');
+    } finally {
+      setTimeout(() => {
+        refreshIcon.style.animation = '';
+      }, 1000);
+    }
+  }
+
+  // Update rooms grid with new data
+  function updateRoomsGrid(rooms) {
+    const grid = document.getElementById('roomsGrid');
+
+    if (rooms.length === 0) {
+      grid.innerHTML = `
+                <div class="room-card" style="text-align: center; grid-column: 1 / -1;">
+                    <h3>🎵 No rooms yet!</h3>
+                    <p class="room-description">Be the first to create a room and start the music collaboration!</p>
+                    <button class="btn btn-primary" onclick="openCreateRoomModal()">
+                        ✨ Create First Room
+                    </button>
+                </div>
+            `;
+      return;
+    }
+
+    grid.innerHTML = rooms
+      .map(
+        (room) => `
+            <div class="room-card" style="--room-color: ${room.room_color}">
+                <div class="room-header">
+                    <div>
+                        <h3 class="room-name">${room.name}</h3>
+                        <div class="room-status">
+                            <div class="status-indicator ${
+                              room.is_full ? 'full' : ''
+                            }"></div>
+                            ${
+                              room.is_full
+                                ? 'Room Full'
+                                : `${room.member_count}/${room.max_users} members`
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                ${
+                  room.description
+                    ? `<p class="room-description">${room.description}</p>`
+                    : ''
+                }
+
+                <div class="room-meta">
+                    <div class="room-members">
+                        👥 ${room.member_count} online
+                    </div>
+                    <div>🎵 0 songs</div>
+                </div>
+
+                <div class="room-actions">
+                    ${
+                      !room.is_full
+                        ? `<a href="/room/${room.id}/" class="btn btn-primary btn-sm"><i class="fas fa-rocket icon-sm"></i> Join Room</a>`
+                        : `<button class="btn btn-secondary btn-sm" disabled><i class="fas fa-lock icon-sm"></i> Full</button>`
+                    }
+                    <button class="btn btn-secondary btn-sm" onclick="shareRoom('${
+                      room.id
+                    }')"><i class="fas fa-share-alt icon-sm"></i> Share</button>
+                </div>
+            </div>
+        `
+      )
+      .join('');
+  }
+
+  // Share room functionality
+  async function shareRoom(roomId) {
+    const url = `${window.location.origin}/room/${roomId}/`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join my Echo Chamber room!',
+          text: 'Come collaborate on music with me in this 3D virtual room',
+          url: url,
+        });
+      } catch (err) {
+        console.log('Error sharing:', err);
+        fallbackShare(url);
+      }
+    } else {
+      fallbackShare(url);
+    }
+  }
+
+  function fallbackShare(url) {
+    if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          showToast('Room link copied to clipboard!', 'success');
+        })
+        .catch(() => {
+          showToast('Failed to copy link', 'error');
+        });
+    } else {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Room link copied to clipboard!', 'success');
+      } catch (err) {
+        showToast('Failed to copy link', 'error');
+      }
+      document.body.removeChild(textArea);
+    }
+  }
+
+  // Close modal when clicking outside
+  document.getElementById('createRoomModal').addEventListener('click', (e) => {
+    if (e.target.id === 'createRoomModal') {
+      closeCreateRoomModal();
+    }
+  });
+
+  // Auto-refresh rooms every 30 seconds
+  setInterval(refreshRooms, 30000);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeCreateRoomModal();
+    } else if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      openCreateRoomModal();
+    }
+  });
+</script>
+{% endblock %}
