@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ room.name }} - Social Echo Chamber</title>
+    <meta name="description" content="3D collaborative music experience" />
+    <meta name="theme-color" content="{{ room.room_color }}" />
+
+    <!-- PWA Support -->
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0"
+    />
+
+    <!-- WebSocket Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+
+    <style>
+      :root {
+          --room-color: {{ room.room_color }};
+          --room-color-dark: {{ room.room_color }}88;
+      }
+
+      * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+      }
+
+      body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, var(--room-color) 0%, #1f2937 100%);
+          overflow: hidden;
+          height: 100vh;
+          touch-action: manipulation;
+          user-select: none;
+      }
+
+      .room-container {
+          position: relative;
+          width: 100vw;
+          height: 100vh;
+          perspective: 1200px;
+          overflow: hidden;
+      }
+
+      .room-3d {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          transform-style: preserve-3d;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* Enhanced 3D Room Walls */
+      .room-wall {
+          position: absolute;
+          background: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          will-change: transform;
+      }
+
+      .wall-floor {
+          width: 800px;
+          height: 800px;
+          transform: rotateX(90deg) translateZ(-200px);
+          background:
+              radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 70%, var(--room-color-dark) 0%, transparent 50%),
+              linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+          left: 50%;
+          top: 50%;
+          margin-left: -400px;
+          margin-top: -400px;
+      }
+
+      .wall-back {
+          width: 800px;
+          height: 400px;
+          transform: translateZ(-400px);
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+          left: 50%;
+          top: 50%;
+          margin-left: -400px;
+          margin-top: -200px;
+      }
+
+      .wall-left, .wall-right {
+          width: 800px;
+          height: 400px;
+          background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+          left: 50%;
+          top: 50%;
+          margin-left: -400px;
+          margin-top: -200px;
+      }
+
+      .wall-left {
+          transform: rotateY(90deg) translateZ(-400px);
+      }
+
+      .wall-right {
+          transform: rotateY(-90deg) translateZ(-400px);
+      }
+
+      /* Enhanced User Avatars */
+      .user-avatar {
+          position: absolute;
+          width: 65px;
+          height: 65px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--avatar-color), var(--avatar-color-dark));
+          border: 3px solid rgba(255, 255, 255, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 700;
+          font-size: 20px;
+          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          user-select: none;
+          box-shadow:
+              0 8px 32px rgba(0, 0, 0, 0.3),
+              0 0 0 0 var(--avatar-color);
+          will-change: transform;
+          z-index: 10;
+      }
+
+      .user-avatar:hover {
+          transform: scale(1.15) translateZ(20px);
+          box-shadow:
+              0 12px 40px rgba(0, 0, 0, 0.4),
+              0 0 30px var(--avatar-color);
+      }
+
+      .user-avatar.current-user {
+          border-color: #fbbf24;
+          box-shadow:
+              0 8px 32px rgba(0, 0, 0, 0.3),
+              0 0 25px rgba(251, 191, 36, 0.6);
+          animation: current-user-glow 3s ease-in-out infinite;
+      }
+
+      @keyframes current-user-glow {
+          0%, 100% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 25px rgba(251, 191, 36, 0.6); }
+          50% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 35px rgba(251, 191, 36, 0.8); }
+      }
+
+      .user-avatar.selected {
+          border-color: #06d6a0 !important;
+          box-shadow:
+              0 8px 32px rgba(0, 0, 0, 0.3),
+              0 0 30px rgba(6, 214, 160, 0.8) !important;
+          animation: selected-pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes selected-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+      }
+
+      .user-label {
+          position: absolute;
+          top: -35px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.85);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 16px;
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+          opacity: 0;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .user-avatar:hover .user-label {
+          opacity: 1;
+          transform: translateX(-50%) translateY(-5px);
+      }
+
+      /* Enhanced Sound Waves */
+      .sound-wave {
+          position: absolute;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--wave-color);
+          pointer-events: none;
+          animation: sound-pulse 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          box-shadow: 0 0 20px var(--wave-color);
+      }
+
+      @keyframes sound-pulse {
+          0% {
+              transform: scale(1);
+              opacity: 1;
+          }
+          50% {
+              transform: scale(15);
+              opacity: 0.6;
+          }
+          100% {
+              transform: scale(25);
+              opacity: 0;
+          }
+      }
+
+      /* Enhanced UI Controls */
+      .controls-panel {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(15px);
+          border-radius: 25px;
+          padding: 18px 25px;
+          display: flex;
+          gap: 18px;
+          align-items: center;
+          z-index: 100;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      .control-btn {
+          width: 55px;
+          height: 55px;
+          border: none;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--room-color), #4f46e5);
+          color: white;
+          font-size: 22px;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+          position: relative;
+          overflow: hidden;
+      }
+
+      .control-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+          transition: left 0.5s;
+      }
+
+      .control-btn:hover::before {
+          left: 100%;
+      }
+
+      .control-btn:hover {
+          transform: scale(1.1) translateY(-2px);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+      }
+
+      .control-btn:active {
+          transform: scale(0.95);
+      }
+
+      .control-btn.active {
+          background: linear-gradient(135deg, #10b981, #059669);
+          animation: active-pulse 2s infinite;
+      }
+
+      @keyframes active-pulse {
+          0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
+          50% { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5); }
+      }
+
+      /* Modern Control Icons */
+      .control-btn i {
+          font-size: 1.2rem;
+          transition: transform 0.3s ease;
+      }
+
+      .control-btn:hover i {
+          transform: scale(1.1);
+      }
+
+      .control-btn.active i {
+          animation: icon-pulse 1s ease-in-out infinite;
+      }
+
+      @keyframes icon-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+      }
+
+      /* Enhanced Room Info */
+      .room-info {
+          position: fixed;
+          top: 20px;
+          left: 20px;
+          right: 20px;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(15px);
+          border-radius: 20px;
+          padding: 18px;
+          color: white;
+          z-index: 100;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      .room-title {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 6px;
+          background: linear-gradient(45deg, var(--room-color), #60a5fa);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+      }
+
+      .room-members {
+          font-size: 14px;
+          opacity: 0.85;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+
+      /* Enhanced Room Info Icons */
+      .room-info-icon {
+          margin-right: 0.5rem;
+          color: var(--room-color);
+      }
+
+      .connection-indicator {
+          width: 8px;
+          height: 8px;
+          background: #10b981;
+          border-radius: 50%;
+          animation: connection-pulse 2s infinite;
+          position: relative;
+      }
+
+      .connection-indicator::before {
+          content: '';
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          background: inherit;
+          border-radius: 50%;
+          animation: connection-ripple 2s infinite;
+      }
+
+      @keyframes connection-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.2); }
+      }
+
+      @keyframes connection-ripple {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+      }
+
+      /* Enhanced Now Playing */
+      .now-playing {
+          position: fixed;
+          top: 50%;
+          left: 20px;
+          right: 20px;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.9);
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 25px;
+          color: white;
+          text-align: center;
+          z-index: 100;
+          opacity: 0;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
+      }
+
+      .now-playing.visible {
+          opacity: 1;
+          transform: translateY(-50%) scale(1);
+      }
+
+      .song-title {
+          font-size: 22px;
+          font-weight: 700;
+          margin-bottom: 8px;
+          background: linear-gradient(45deg, #60a5fa, var(--room-color));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+      }
+
+      .song-artist {
+          font-size: 16px;
+          opacity: 0.8;
+          margin-bottom: 20px;
+          font-weight: 500;
+      }
+
+      .progress-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 15px;
+      }
+
+      .progress-time {
+          font-size: 12px;
+          font-weight: 500;
+          opacity: 0.7;
+          min-width: 35px;
+      }
+
+      .progress-bar {
+          flex: 1;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 3px;
+          overflow: hidden;
+          position: relative;
+      }
+
+      .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, var(--room-color), #60a5fa);
+          width: 0%;
+          transition: width 0.2s ease;
+          border-radius: 3px;
+          position: relative;
+      }
+
+      .progress-fill::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 4px;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.8);
+          border-radius: 2px;
+      }
+
+      /* Music Control Icons */
+      .music-icon {
+          background: linear-gradient(45deg, var(--room-color), #60a5fa);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+      }
+
+      /* Mobile Optimizations */
+      @media (max-width: 768px) {
+          .controls-panel {
+              bottom: 15px;
+              padding: 15px 20px;
+              gap: 15px;
+          }
+
+          .control-btn {
+              width: 50px;
+              height: 50px;
+              font-size: 20px;
+          }
+
+          .room-info {
+              top: 15px;
+              left: 15px;
+              right: 15px;
+              padding: 15px;
+          }
+
+          .room-title {
+              font-size: 18px;
+          }
+
+          .user-avatar {
+              width: 55px;
+              height: 55px;
+              font-size: 18px;
+          }
+
+          .now-playing {
+              left: 15px;
+              right: 15px;
+              padding: 20px;
+          }
+
+          .song-title {
+              font-size: 20px;
+          }
+      }
+
+      @media (max-width: 480px) {
+          .controls-panel {
+              bottom: 10px;
+              padding: 12px 15px;
+              gap: 12px;
+          }
+
+          .control-btn {
+              width: 45px;
+              height: 45px;
+              font-size: 18px;
+          }
+
+          .user-avatar {
+              width: 50px;
+              height: 50px;
+              font-size: 16px;
+          }
+      }
+
+      /* Loading States */
+      .loading {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          color: white;
+          font-size: 18px;
+          z-index: 200;
+          text-align: center;
+      }
+
+      .spinner {
+          width: 50px;
+          height: 50px;
+          border: 4px solid rgba(255, 255, 255, 0.2);
+          border-top: 4px solid var(--room-color);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 20px;
+          position: relative;
+      }
+
+      .spinner::after {
+          content: '\f001';
+          font-family: 'Font Awesome 6 Free';
+          font-weight: 900;
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          color: var(--room-color);
+          font-size: 16px;
+      }
+
+      @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+      }
+
+      /* Atmosphere Effects */
+      .room-atmosphere {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          opacity: 0.15;
+          transition: all 3s ease;
+          z-index: 1;
+      }
+
+      .atmosphere-electronic {
+          background:
+              radial-gradient(circle at 20% 20%, #3b82f6 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, #8b5cf6 0%, transparent 50%);
+          animation: electronic-pulse 4s ease-in-out infinite;
+      }
+
+      .atmosphere-rock {
+          background:
+              radial-gradient(circle at 30% 70%, #ef4444 0%, transparent 60%),
+              radial-gradient(circle at 70% 30%, #f97316 0%, transparent 60%);
+          animation: rock-pulse 2s ease-in-out infinite;
+      }
+
+      .atmosphere-chill {
+          background:
+              radial-gradient(circle at 50% 50%, #10b981 0%, transparent 70%),
+              radial-gradient(circle at 25% 75%, #06d6a0 0%, transparent 50%);
+          animation: chill-pulse 6s ease-in-out infinite;
+      }
+
+      @keyframes electronic-pulse {
+          0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.15; }
+          33% { transform: scale(1.1) rotate(2deg); opacity: 0.25; }
+          66% { transform: scale(0.9) rotate(-1deg); opacity: 0.2; }
+      }
+
+      @keyframes rock-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.15; }
+          25% { transform: scale(1.05); opacity: 0.2; }
+          50% { transform: scale(1.1); opacity: 0.3; }
+          75% { transform: scale(1.05); opacity: 0.2; }
+      }
+
+      @keyframes chill-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.1; }
+          50% { transform: scale(1.05); opacity: 0.15; }
+      }
+
+      /* Beat Visualization */
+      .beat-pulse {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: radial-gradient(circle, transparent 30%, var(--avatar-color) 100%);
+          opacity: 0;
+          animation: beat-pulse 0.8s ease-out;
+          pointer-events: none;
+          z-index: 5;
+      }
+
+      @keyframes beat-pulse {
+          0% {
+              transform: scale(1);
+              opacity: 0.6;
+          }
+          100% {
+              transform: scale(2.5);
+              opacity: 0;
+          }
+      }
+
+      /* Error States */
+      .error-message {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(239, 68, 68, 0.9);
+          color: white;
+          padding: 20px;
+          border-radius: 15px;
+          text-align: center;
+          z-index: 300;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      /* Accessibility */
+      @media (prefers-reduced-motion: reduce) {
+          * {
+              animation-duration: 0.01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: 0.01ms !important;
+          }
+      }
+
+      /* Focus States for Keyboard Navigation */
+      .control-btn:focus,
+      .user-avatar:focus {
+          outline: 2px solid #60a5fa;
+          outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>
+        <i class="fas fa-wifi room-info-icon"></i>
+        Joining {{ room.name }}...
+      </div>
+    </div>
+
+    <div class="room-container" id="roomContainer">
+      <div class="room-3d" id="room3d">
+        <!-- Room Walls -->
+        <div class="room-wall wall-floor"></div>
+        <div class="room-wall wall-back"></div>
+        <div class="room-wall wall-left"></div>
+        <div class="room-wall wall-right"></div>
+
+        <!-- Atmosphere Overlay -->
+        <div class="room-atmosphere atmosphere-chill" id="roomAtmosphere"></div>
+      </div>
+    </div>
+
+    <div class="room-info">
+      <div class="room-title" id="roomTitle">
+        <i class="fas fa-door-open room-info-icon"></i>
+        {{ room.name }}
+      </div>
+      <div class="room-members">
+        <span id="roomMembers">
+          <i class="fas fa-users room-info-icon"></i>
+          Connecting...
+        </span>
+        <div
+          class="connection-indicator"
+          id="connectionStatus"
+          title="Connected"
+        ></div>
+      </div>
+    </div>
+
+    <div class="now-playing" id="nowPlaying">
+      <div class="song-title" id="songTitle">
+        <i class="fas fa-music music-icon"></i>
+        No song playing
+      </div>
+      <div class="song-artist" id="songArtist"></div>
+      <div class="progress-container">
+        <span class="progress-time" id="currentTime">0:00</span>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span class="progress-time" id="totalTime">0:00</span>
+      </div>
+    </div>
+
+    <div class="controls-panel">
+      <button
+        class="control-btn"
+        id="playBtn"
+        title="Play/Pause"
+        aria-label="Play or pause music"
+      >
+        <i class="fas fa-play"></i>
+      </button>
+      <button
+        class="control-btn"
+        id="skipBtn"
+        title="Skip Song"
+        aria-label="Skip to next song"
+      >
+        <i class="fas fa-forward"></i>
+      </button>
+      <button
+        class="control-btn"
+        id="waveBtn"
+        title="Send Wave"
+        aria-label="Send sound wave to selected user"
+      >
+        <i class="fas fa-broadcast-tower"></i>
+      </button>
+      <button
+        class="control-btn"
+        id="moveBtn"
+        title="Move Avatar"
+        aria-label="Toggle move mode"
+      >
+        <i class="fas fa-walking"></i>
+      </button>
+      <button
+        class="control-btn"
+        id="backBtn"
+        title="Back to Rooms"
+        aria-label="Return to room list"
+      >
+        <i class="fas fa-home"></i>
+      </button>
+    </div>
+
+    <!-- Hidden data for JavaScript -->
+    <script id="room-data" type="application/json">
+      {
+          "room_id": "{{ room.id }}",
+          "room_name": "{{ room.name }}",
+          "room_color": "{{ room.room_color }}",
+          "user_id": {{ user_id }},
+          "member_id": {{ member.id }},
+          "member_color": "{{ member.avatar_color }}",
+          "websocket_url": "{{ websocket_url|default:'ws://localhost:5000' }}"
+      }
+    </script>
+
+    <script>
+      // Enhanced Social Echo Chamber with Django Integration
+      class EchoChamber {
+        constructor() {
+          // Load configuration from Django template
+          const config = JSON.parse(
+            document.getElementById('room-data').textContent
+          );
+          this.roomId = config.room_id;
+          this.roomName = config.room_name;
+          this.roomColor = config.room_color;
+          this.currentUserId = config.user_id;
+          this.memberId = config.member_id;
+          this.memberColor = config.member_color;
+          this.websocketUrl = config.websocket_url;
+
+          // 3D Scene properties
+          this.room3d = document.getElementById('room3d');
+          this.rotationX = -15;
+          this.rotationY = 0;
+          this.isMoving = false;
+          this.selectedUser = null;
+          this.members = new Map();
+          this.currentSong = null;
+          this.playbackPosition = 0;
+          this.isConnected = false;
+
+          // Touch controls
+          this.touchStartX = 0;
+          this.touchStartY = 0;
+          this.isMouseDown = false;
+
+          this.init();
+        }
+
+        init() {
+          this.setupEventListeners();
+          this.updateRoomTransform();
+          this.startDemoMode();
+
+          // Set CSS custom properties
+          document.documentElement.style.setProperty(
+            '--room-color',
+            this.roomColor
+          );
+          document.documentElement.style.setProperty(
+            '--room-color-dark',
+            this.roomColor + '88'
+          );
+        }
+
+        setupEventListeners() {
+          // Touch/Mouse controls for 3D navigation
+          const startHandler = (e) => {
+            if (this.isMoving) return;
+            this.isMouseDown = true;
+            this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX;
+            this.touchStartY = e.touches ? e.touches[0].clientY : e.clientY;
+          };
+
+          const moveHandler = (e) => {
+            if (!this.isMouseDown || this.isMoving) return;
+            e.preventDefault();
+
+            const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+            const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const deltaX = currentX - this.touchStartX;
+            const deltaY = currentY - this.touchStartY;
+
+            this.rotationY += deltaX * 0.5;
+            this.rotationX -= deltaY * 0.5;
+
+            // Constrain rotation
+            this.rotationX = Math.max(-60, Math.min(30, this.rotationX));
+
+            this.updateRoomTransform();
+
+            this.touchStartX = currentX;
+            this.touchStartY = currentY;
+          };
+
+          const endHandler = () => {
+            this.isMouseDown = false;
+          };
+
+          // Add event listeners
+          document.addEventListener('mousedown', startHandler);
+          document.addEventListener('mousemove', moveHandler);
+          document.addEventListener('mouseup', endHandler);
+          document.addEventListener('touchstart', startHandler, {
+            passive: false,
+          });
+          document.addEventListener('touchmove', moveHandler, {
+            passive: false,
+          });
+          document.addEventListener('touchend', endHandler);
+
+          // Control buttons
+          document.getElementById('playBtn').onclick = () =>
+            this.togglePlayback();
+          document.getElementById('skipBtn').onclick = () => this.skipSong();
+          document.getElementById('waveBtn').onclick = () =>
+            this.sendSoundWave();
+          document.getElementById('moveBtn').onclick = () =>
+            this.toggleMoveMode();
+          document.getElementById('backBtn').onclick = () => this.goBack();
+
+          // Move mode click handler
+          this.roomMoveHandler = (e) => {
+            if (!this.isMoving) return;
+            e.preventDefault();
+
+            const rect = this.room3d.getBoundingClientRect();
+            const x =
+              ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left) /
+              rect.width;
+            const y =
+              ((e.touches ? e.touches[0].clientY : e.clientY) - rect.top) /
+              rect.height;
+
+            // Convert to 3D world coordinates
+            const worldX = (x - 0.5) * 8; // -4 to 4
+            const worldY = (y - 0.5) * 4; // -2 to 2
+            const worldZ = Math.random() * 4 - 2; // -2 to 2
+
+            this.updateUserPosition(worldX, worldY, worldZ);
+          };
+
+          // Keyboard controls
+          document.addEventListener('keydown', (e) => {
+            switch (e.key.toLowerCase()) {
+              case ' ':
+                e.preventDefault();
+                this.togglePlayback();
+                break;
+              case 'n':
+                e.preventDefault();
+                this.skipSong();
+                break;
+              case 'm':
+                e.preventDefault();
+                this.toggleMoveMode();
+                break;
+              case 'w':
+                e.preventDefault();
+                this.sendSoundWave();
+                break;
+              case 'escape':
+                e.preventDefault();
+                if (this.isMoving) this.toggleMoveMode();
+                if (this.selectedUser) this.selectUser(null);
+                break;
+              case 'arrowleft':
+                e.preventDefault();
+                this.rotationY -= 10;
+                this.updateRoomTransform();
+                break;
+              case 'arrowright':
+                e.preventDefault();
+                this.rotationY += 10;
+                this.updateRoomTransform();
+                break;
+              case 'arrowup':
+                e.preventDefault();
+                this.rotationX = Math.min(30, this.rotationX + 10);
+                this.updateRoomTransform();
+                break;
+              case 'arrowdown':
+                e.preventDefault();
+                this.rotationX = Math.max(-60, this.rotationX - 10);
+                this.updateRoomTransform();
+                break;
+            }
+          });
+        }
+
+        updateRoomTransform() {
+          this.room3d.style.transform = `rotateX(${this.rotationX}deg) rotateY(${this.rotationY}deg) translateZ(0px)`;
+        }
+
+        startDemoMode() {
+          // Demo mode with simulated users and music
+          setTimeout(() => {
+            this.loadDemoData();
+            document.getElementById('loading').style.display = 'none';
+          }, 1500);
+
+          // Start demo updates
+          this.startDemoUpdates();
+        }
+
+        loadDemoData() {
+          const demoMembers = [
+            {
+              user_id: this.currentUserId,
+              username: 'You',
+              avatar_color: this.memberColor,
+              position: { x: 0, y: 0, z: 0 },
+              is_current: true,
+            },
+            {
+              user_id: 'demo1',
+              username: 'Alex',
+              avatar_color: '#3b82f6',
+              position: { x: 2.5, y: 1, z: -1.5 },
+            },
+            {
+              user_id: 'demo2',
+              username: 'Sarah',
+              avatar_color: '#10b981',
+              position: { x: -2, y: -1, z: 1 },
+            },
+            {
+              user_id: 'demo3',
+              username: 'Mike',
+              avatar_color: '#ef4444',
+              position: { x: 1.5, y: -1.5, z: 2 },
+            },
+          ];
+
+          this.updateMembers(demoMembers);
+
+          // Demo playlist
+          this.currentSong = {
+            title: 'Midnight City',
+            artist: 'M83',
+            duration: 245,
+            genre: 'Electronic',
+          };
+
+          this.playbackPosition = 67;
+          this.updateNowPlaying();
+          this.updateProgressBar();
+          this.updateAtmosphere('Electronic');
+
+          document.getElementById('roomMembers').innerHTML = `
+                    <i class="fas fa-users room-info-icon"></i>
+                    ${demoMembers.length} members online
+                `;
+        }
+
+        startDemoUpdates() {
+          // Beat visualization
+          setInterval(() => {
+            document.querySelectorAll('.user-avatar').forEach((avatar) => {
+              if (Math.random() > 0.6) {
+                this.addBeatPulse(avatar);
+              }
+            });
+          }, 600);
+
+          // Progress update
+          setInterval(() => {
+            if (this.currentSong) {
+              this.playbackPosition += 1;
+              if (this.playbackPosition >= this.currentSong.duration) {
+                this.playbackPosition = 0;
+              }
+              this.updateProgressBar();
+            }
+          }, 1000);
+
+          // Random sound waves
+          setInterval(() => {
+            if (Math.random() > 0.7 && this.members.size > 1) {
+              const members = Array.from(this.members.values());
+              const from = members[Math.floor(Math.random() * members.length)];
+              const to = members[Math.floor(Math.random() * members.length)];
+
+              if (from.user_id !== to.user_id) {
+                this.createSoundWave({
+                  from_user_id: from.user_id,
+                  to_user_id: to.user_id,
+                  color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'][
+                    Math.floor(Math.random() * 4)
+                  ],
+                  intensity: 0.8 + Math.random() * 0.4,
+                });
+              }
+            }
+          }, 3000);
+        }
+
+        updateMembers(members) {
+          // Clear existing avatars
+          document
+            .querySelectorAll('.user-avatar')
+            .forEach((el) => el.remove());
+          this.members.clear();
+
+          // Add all members
+          members.forEach((member) => {
+            this.members.set(member.user_id, member);
+            this.addUserAvatar(member);
+          });
+        }
+
+        addUserAvatar(member) {
+          const avatar = document.createElement('div');
+          avatar.className = `user-avatar ${
+            member.is_current ? 'current-user' : ''
+          }`;
+          avatar.id = `user-${member.user_id}`;
+          avatar.style.setProperty('--avatar-color', member.avatar_color);
+          avatar.style.setProperty(
+            '--avatar-color-dark',
+            this.darkenColor(member.avatar_color)
+          );
+
+          avatar.innerHTML = `
+                    ${member.username.charAt(0).toUpperCase()}
+                    <div class="user-label">${member.username}</div>
+                `;
+
+          // Position in 3D space
+          this.positionAvatar(avatar, member.position);
+
+          // Add click handler
+          avatar.onclick = (e) => {
+            e.stopPropagation();
+            this.selectUser(member.user_id);
+          };
+
+          this.room3d.appendChild(avatar);
+        }
+
+        positionAvatar(avatar, position) {
+          const x = position.x * 60 + window.innerWidth / 2;
+          const y = position.y * 60 + window.innerHeight / 2;
+          const z = position.z * 60;
+
+          avatar.style.left = `${x}px`;
+          avatar.style.top = `${y}px`;
+          avatar.style.transform = `translateZ(${z}px) translate(-50%, -50%)`;
+        }
+
+        selectUser(userId) {
+          // Clear previous selection
+          document.querySelectorAll('.user-avatar').forEach((el) => {
+            el.classList.remove('selected');
+          });
+
+          if (userId && userId !== this.currentUserId) {
+            this.selectedUser = userId;
+            const avatar = document.getElementById(`user-${userId}`);
+            if (avatar) {
+              avatar.classList.add('selected');
+            }
+          } else {
+            this.selectedUser = null;
+          }
+        }
+
+        createSoundWave(waveData) {
+          const fromMember = this.members.get(waveData.from_user_id);
+          const toMember = this.members.get(waveData.to_user_id);
+
+          if (!fromMember || !toMember) return;
+
+          const wave = document.createElement('div');
+          wave.className = 'sound-wave';
+          wave.style.setProperty('--wave-color', waveData.color);
+
+          // Position at sender
+          const fromX = fromMember.position.x * 60 + window.innerWidth / 2;
+          const fromY = fromMember.position.y * 60 + window.innerHeight / 2;
+
+          wave.style.left = `${fromX}px`;
+          wave.style.top = `${fromY}px`;
+          wave.style.transform = 'translate(-50%, -50%)';
+
+          this.room3d.appendChild(wave);
+
+          // Animate towards receiver
+          setTimeout(() => {
+            const toX = toMember.position.x * 60 + window.innerWidth / 2;
+            const toY = toMember.position.y * 60 + window.innerHeight / 2;
+
+            wave.style.left = `${toX}px`;
+            wave.style.top = `${toY}px`;
+            wave.style.transition = 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)';
+          }, 100);
+
+          // Remove after animation
+          setTimeout(() => wave.remove(), 2500);
+        }
+
+        addBeatPulse(avatar) {
+          const pulse = document.createElement('div');
+          pulse.className = 'beat-pulse';
+          avatar.appendChild(pulse);
+
+          setTimeout(() => pulse.remove(), 800);
+        }
+
+        updateAtmosphere(genre) {
+          const atmosphere = document.getElementById('roomAtmosphere');
+          const atmosphereType = this.getAtmosphereType(genre);
+
+          atmosphere.className = `room-atmosphere atmosphere-${atmosphereType}`;
+        }
+
+        getAtmosphereType(genre) {
+          const genreMap = {
+            Electronic: 'electronic',
+            EDM: 'electronic',
+            Techno: 'electronic',
+            House: 'electronic',
+            Rock: 'rock',
+            Metal: 'rock',
+            Punk: 'rock',
+            Pop: 'chill',
+            'R&B': 'chill',
+            Jazz: 'chill',
+            Ambient: 'chill',
+            'Trip-Hop': 'chill',
+          };
+          return genreMap[genre] || 'chill';
+        }
+
+        updateNowPlaying() {
+          if (!this.currentSong) return;
+
+          document.getElementById('songTitle').innerHTML = `
+                    <i class="fas fa-music music-icon"></i>
+                    ${this.currentSong.title}
+                `;
+          document.getElementById('songArtist').textContent =
+            this.currentSong.artist;
+          document.getElementById('totalTime').textContent = this.formatTime(
+            this.currentSong.duration
+          );
+          document.getElementById('nowPlaying').classList.add('visible');
+        }
+
+        hideNowPlaying() {
+          document.getElementById('nowPlaying').classList.remove('visible');
+        }
+
+        updateProgressBar() {
+          if (!this.currentSong) return;
+
+          const progress =
+            (this.playbackPosition / this.currentSong.duration) * 100;
+          document.getElementById('progressFill').style.width = `${Math.min(
+            100,
+            Math.max(0, progress)
+          )}%`;
+          document.getElementById('currentTime').textContent = this.formatTime(
+            this.playbackPosition
+          );
+        }
+
+        formatTime(seconds) {
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.floor(seconds % 60);
+          return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        darkenColor(color) {
+          const hex = color.replace('#', '');
+          const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 40);
+          const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 40);
+          const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 40);
+          return `#${r.toString(16).padStart(2, '0')}${g
+            .toString(16)
+            .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+
+        // Control Methods
+        togglePlayback() {
+          const playBtn = document.getElementById('playBtn');
+          const icon = playBtn.querySelector('i');
+
+          // Toggle play/pause icon
+          if (icon.classList.contains('fa-play')) {
+            icon.classList.remove('fa-play');
+            icon.classList.add('fa-pause');
+          } else {
+            icon.classList.remove('fa-pause');
+            icon.classList.add('fa-play');
+          }
+
+          this.animateButton('playBtn');
+          this.showToast('🎵 Playback toggled!');
+        }
+
+        skipSong() {
+          this.animateButton('skipBtn');
+          this.showToast('⏭️ Song skipped!');
+        }
+
+        sendSoundWave() {
+          if (!this.selectedUser) {
+            this.showToast(
+              'Select a user first by tapping their avatar!',
+              'error'
+            );
+            this.animateButton('waveBtn', 'error');
+            return;
+          }
+
+          // Send wave to selected user
+          const colors = [
+            '#3b82f6',
+            '#10b981',
+            '#f59e0b',
+            '#ef4444',
+            '#8b5cf6',
+          ];
+          this.createSoundWave({
+            from_user_id: this.currentUserId,
+            to_user_id: this.selectedUser,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            intensity: 1.0,
+          });
+
+          this.animateButton('waveBtn', 'success');
+          this.showToast('📡 Sound wave sent!');
+        }
+
+        toggleMoveMode() {
+          this.isMoving = !this.isMoving;
+          const btn = document.getElementById('moveBtn');
+          const container = document.getElementById('roomContainer');
+
+          if (this.isMoving) {
+            btn.classList.add('active');
+            container.style.cursor = 'crosshair';
+            container.addEventListener('click', this.roomMoveHandler);
+            container.addEventListener('touchstart', this.roomMoveHandler);
+            this.showToast(
+              '🚶 Move mode activated! Click to move your avatar.'
+            );
+          } else {
+            btn.classList.remove('active');
+            container.style.cursor = 'default';
+            container.removeEventListener('click', this.roomMoveHandler);
+            container.removeEventListener('touchstart', this.roomMoveHandler);
+            this.showToast('🚶 Move mode deactivated.');
+          }
+        }
+
+        updateUserPosition(x, y, z) {
+          // Update current user position
+          const currentMember = this.members.get(this.currentUserId);
+          if (currentMember) {
+            currentMember.position = { x, y, z };
+            const avatar = document.getElementById(
+              `user-${this.currentUserId}`
+            );
+            if (avatar) {
+              this.positionAvatar(avatar, { x, y, z });
+            }
+          }
+        }
+
+        goBack() {
+          window.location.href = '/';
+        }
+
+        animateButton(buttonId, type = 'default') {
+          const btn = document.getElementById(buttonId);
+          const originalBg = btn.style.background;
+
+          switch (type) {
+            case 'success':
+              btn.style.background =
+                'linear-gradient(135deg, #10b981, #059669)';
+              break;
+            case 'error':
+              btn.style.background =
+                'linear-gradient(135deg, #ef4444, #dc2626)';
+              break;
+            default:
+              btn.style.background =
+                'linear-gradient(135deg, #3b82f6, #1d4ed8)';
+          }
+
+          setTimeout(() => {
+            btn.style.background = originalBg;
+          }, 500);
+        }
+
+        showToast(message, type = 'info') {
+          // Create toast notification
+          const toast = document.createElement('div');
+          toast.className = 'error-message';
+          toast.style.background =
+            type === 'error'
+              ? 'rgba(239, 68, 68, 0.9)'
+              : type === 'success'
+              ? 'rgba(16, 185, 129, 0.9)'
+              : 'rgba(59, 130, 246, 0.9)';
+          toast.textContent = message;
+          document.body.appendChild(toast);
+
+          setTimeout(() => toast.remove(), 3000);
+        }
+      }
+
+      // Initialize the application
+      document.addEventListener('DOMContentLoaded', () => {
+        const echoChamber = new EchoChamber();
+
+        // Handle visibility changes (mobile app backgrounding)
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            console.log('App backgrounded');
+          } else {
+            console.log('App foregrounded');
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
