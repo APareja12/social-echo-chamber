@@ -1,0 +1,155 @@
+{% extends 'rooms/base.html' %} {% block title %}{{ room.name }} is Full -
+Social Echo Chamber{% endblock %} {% block content %}
+<div style="text-align: center; padding: 4rem 0">
+  <div style="font-size: 4rem; margin-bottom: 1rem; color: var(--error-color)">
+    <i class="fas fa-lock"></i>
+  </div>
+  <h1 style="font-size: 2.5rem; margin-bottom: 1rem">Room is Full</h1>
+  <p
+    style="
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    "
+  >
+    <strong>{{ room.name }}</strong> has reached its maximum capacity of {{
+    room.max_users }} users.
+  </p>
+  <p style="color: var(--text-secondary); margin-bottom: 2rem">
+    <i class="fas fa-clock icon-sm"></i>
+    Try again later or explore other rooms!
+  </p>
+  <div
+    style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap"
+  >
+    <a href="{% url 'rooms:index' %}" class="btn btn-primary">
+      <i class="fas fa-music icon-sm"></i>
+      Browse Other Rooms
+    </a>
+    <button onclick="location.reload()" class="btn btn-secondary">
+      <i class="fas fa-sync-alt icon-sm"></i>
+      Try Again
+    </button>
+  </div>
+
+  <!-- Real-time capacity indicator -->
+  <div
+    style="
+      margin-top: 2rem;
+      padding: 1rem;
+      background: var(--surface);
+      border-radius: 0.75rem;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+      "
+    >
+      <span style="font-size: 0.875rem; color: var(--text-secondary)">
+        <i class="fas fa-users icon-sm"></i>
+        Room Capacity
+      </span>
+      <span style="font-weight: 600"
+        >{{ room.max_users }}/{{ room.max_users }}</span
+      >
+    </div>
+    <div
+      style="
+        width: 100%;
+        height: 8px;
+        background: var(--surface-light);
+        border-radius: 4px;
+        overflow: hidden;
+      "
+    >
+      <div
+        style="
+          width: 100%;
+          height: 100%;
+          background: var(--error-color);
+          border-radius: 4px;
+        "
+      ></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Auto-refresh every 10 seconds to check if space becomes available
+  let refreshCount = 0;
+  const maxRefreshes = 30; // Stop after 5 minutes
+
+  const autoRefresh = setInterval(() => {
+    refreshCount++;
+
+    // Update the try again button to show countdown
+    const tryAgainBtn = document.querySelector(
+      'button[onclick="location.reload()"]'
+    );
+    if (tryAgainBtn) {
+      const secondsLeft = 10 - (refreshCount % 10);
+      if (secondsLeft === 10) {
+        tryAgainBtn.innerHTML = `
+                    <i class="fas fa-sync-alt icon-sm"></i>
+                    Checking... (${Math.ceil(
+                      (maxRefreshes - refreshCount) / 6
+                    )} min left)
+                `;
+        location.reload();
+      } else {
+        tryAgainBtn.innerHTML = `
+                    <i class="fas fa-clock icon-sm"></i>
+                    Auto-check in ${secondsLeft}s
+                `;
+      }
+    }
+
+    if (refreshCount >= maxRefreshes) {
+      clearInterval(autoRefresh);
+      if (tryAgainBtn) {
+        tryAgainBtn.innerHTML = `
+                    <i class="fas fa-sync-alt icon-sm"></i>
+                    Try Again
+                `;
+      }
+    }
+  }, 1000);
+
+  // Visual feedback for auto-refresh
+  let pulseInterval = setInterval(() => {
+    const lockIcon = document.querySelector('.fas.fa-lock');
+    if (lockIcon) {
+      lockIcon.style.transform = 'scale(1.1)';
+      setTimeout(() => {
+        lockIcon.style.transform = 'scale(1)';
+      }, 200);
+    }
+  }, 2000);
+
+  // Stop pulse when auto-refresh stops
+  setTimeout(() => {
+    clearInterval(pulseInterval);
+  }, maxRefreshes * 1000);
+</script>
+
+<style>
+  .btn {
+    transition: all 0.3s ease;
+  }
+
+  .btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .fas.fa-lock {
+    transition: transform 0.2s ease;
+  }
+</style>
+{% endblock %}
