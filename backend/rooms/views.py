@@ -23,14 +23,12 @@ from .models import (
 # Home page view
 def index(request):
     """Home page with room list"""
-    # Get public rooms with member counts
     rooms = Room.objects.filter(is_public=True).annotate(
-        member_count=Count('members', filter=models.Q(members__is_active=True))
-    ).order_by('-created_at')[:10]
+        active_member_count=Count('members', filter=models.Q(members__is_active=True))
+    )[:10]
     
     context = {
         'rooms': rooms,
-        'user': request.user if request.user.is_authenticated else None
     }
     return render(request, 'rooms/index.html', context)
 
